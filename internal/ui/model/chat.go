@@ -900,6 +900,20 @@ func (m *Chat) MessageItemAt(i int) chat.MessageItem {
 	return item
 }
 
+// tailSpinsTurnTimer reports whether the last item, ignoring the turn timer
+// itself, is an assistant message whose spinner already shows the turn time.
+func (m *Chat) tailSpinsTurnTimer() bool {
+	for i := m.list.Len() - 1; i >= 0; i-- {
+		item := m.MessageItemAt(i)
+		if item == nil || item.ID() == chat.PendingAssistantID {
+			continue
+		}
+		assistant, ok := item.(*chat.AssistantMessageItem)
+		return ok && assistant.Spinning()
+	}
+	return false
+}
+
 // ToggleExpandedSelectedItem expands the selected message item if it is expandable.
 func (m *Chat) ToggleExpandedSelectedItem() {
 	if expandable, ok := m.list.SelectedItem().(chat.Expandable); ok {

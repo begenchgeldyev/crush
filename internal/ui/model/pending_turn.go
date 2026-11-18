@@ -16,7 +16,8 @@ type pendingTurn struct {
 	// after is the last prompt stored before this turn's; empty if none.
 	after string
 	// spinner is the placeholder, kept so moving it keeps its animation.
-	spinner chat.MessageItem
+	// Once handed off it stays as the turn timer at the tail.
+	spinner *chat.PendingAssistantItem
 	// handedOff records that an assistant message now carries the spinner.
 	handedOff bool
 }
@@ -36,7 +37,10 @@ func (m *UI) showPendingTurn(sessionID, prompt string, attachments []message.Att
 // now carries the spinner, without ending the turn.
 func (m *UI) handOffPendingTurn() {
 	m.pending.handedOff = true
-	m.pending.spinner = nil
+	if m.pending.spinner == nil {
+		m.pending.spinner = chat.NewPendingAssistantItem(m.com.Styles, m.pending.sessionID)
+	}
+	m.pending.spinner.Stop()
 	m.syncPendingItem()
 }
 
@@ -80,12 +84,17 @@ func (m *UI) syncPendingItem() bool {
 	if m.pending.echo != nil && m.chat.MessageItem(chat.PendingUserID) == nil {
 		m.chat.AppendMessages(m.pending.echo)
 	}
-	if m.pending.handedOff {
+	// After the handoff the item is the turn timer: it stays last, and hides
+	// while a spinning assistant message already shows the time.
+	if m.pending.handedOff && m.chat.tailSpinsTurnTimer() {
 		m.chat.RemoveMessage(chat.PendingAssistantID)
 		return false
 	}
 	if m.chat.MessageItem(chat.PendingAssistantID) != nil {
-		return false
+		if m.chat.MessageItemAt(m.chat.Len()-1) == m.pending.spinner {
+			return false
+		}
+		m.chat.RemoveMessage(chat.PendingAssistantID)
 	}
 	if m.pending.spinner == nil {
 		m.pending.spinner = chat.NewPendingAssistantItem(m.com.Styles, m.pending.sessionID)
